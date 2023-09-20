@@ -1,0 +1,4 @@
+name = "RunningStatistics"
+uuid = "d21560ed-4a15-4731-9719-c39da85c982f"
+authors = ["Ryan Bennink <benninkrs@ornl.gov>"]
+version = "0.1.0"
