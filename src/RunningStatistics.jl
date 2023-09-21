@@ -1,103 +1,124 @@
 """
-Datatype to maintain running statistics (mean, min/max, variance, etc.) of data.
-Useful for streamed data or when you don't want to stroe all the data in memory. 
+Datatypes to maintain running statistics (mean, min/max, variance, etc.) of data
+without storing the entire collection. Useful for streamed data. 
 """
 module RunningStatistics
 
-import Base: push!
-import Statistics: mean, var, std, maximum, minimum
+using LinearAlgebra: dot
 
-export RunningStatistic
-export mean, var, std, maximum, minimum, uncert
+import Base: push!, eltype, length, isempty, merge
+import Statistics: mean, var, std		# maximum, minimum
+
+export RunningMeanVar
+export mean, var, std, uncert  			# maximum, minimum
+
+
+# abstract type AbstractRunningStatistic{T,R,S} end
+
 
 """
-	RunningStatistic{T}()
-	RunnningStatistic(x::T)
+	RunningMeanVar{T}()
 
-An object that maintins basic statistics of multiple data of type T.
-T can be any type that implements addition/subtraction, min/max, scaling, and
-(elementise) `sqrt`.
+An object that keeps a running mean and variance of sequentially input data
+of type `T`.  It is used like a collection that implements [`length`](@ref), [`push!`](@ref),
+[`mean`](@ref), [`var`](@ref), [`std`](@ref), and [`uncert`](@ref). 
 
-A `RunningStatistic` is used much like a collection, and supports the following methods:
-`push!`, `length`, `eltype`, `mean`, `var`, `std`, `min`, `max`.  The new method `uncert`
-provides an estimate of the uncertainty of the mean.
+The type `T` must support addition/subtraction, scaling by a Float64, and
+two-argument `dot`.
 """
-mutable struct RunningStatistic{T}
+mutable struct RunningMeanVar{T,R,S}
 	count::Int
-	min::Union{T, Nothing}
-	max::Union{T, Nothing}
-	mean::Union{T, Nothing}
-	sumsq::Union{T, Nothing}
+	mean::Union{R, Nothing}
+	sumsq::Union{S, Nothing}
+	# min::Union{T, Nothing}
+	# max::Union{T, Nothing}
 
-	# Create with explicit type
-	function RunningStatistic{T}() where {T}
-		new(0, nothing, nothing, nothing, nothing)
+	function RunningMeanVar{T}() where {T}
+		R = Base.return_types(*, (T, Float64))[1]
+		S = Base.return_types(realdot, (R, R))[1]		# or promote_type(eltype(T), Float64)
+		new{T,R,S}(0, nothing, nothing)
 	end
-
-	# Create from template object
-	function RunningStatistic(x::T) where {T}
-		new{T}(0, nothing, nothing, nothing, nothing)
-	end
-
 end
 
-
-eltype(::RunningStatistic{T}) where {T} = T
-length(stat::RunningStatistic) = stat.count
-
-mean(stat::RunningStatistic) = stat.mean
-minimum(stat::RunningStatistic) = stat.min
-maximum(stat::RunningStatistic) = stat.max
+# internal function only used to help determine type
+realdot(a,b) = real(dot(a,b))
 
 
-raw_var(stat::RunningStatistic, corrected::Bool) = stat.sumsq/(stat.count - corrected)
+# Basic properties
+eltype(::RunningMeanVar{T}) where {T} = T
+length(stat::RunningMeanVar) = stat.count
+isempty(stat::RunningMeanVar) = (stat.count == 0)
 
-var(stat::RunningStatistic; corrected = true) = stat.count > 1 ? raw_var(stat, corrected) : nothing
-std(stat::RunningStatistic; corrected = true) = stat.count > 1 ? sqrt.(raw_var(stat, corrected)) : nothing
+
 
 """
-	uncert(s::RunningStatistic)
-
-Estimated statistical uncertainty of `mean(s)``;  equivalent to `sqrt(var(s)/length(s))`.
-Like `var` and `std`, `uncert` should not be relied upon until the collection is large enough
-to fairly represent the population.
-"""
-uncert(stat::RunningStatistic) = stat.count > 1 ? sqrt.(raw_var(stat, true)/stat.count) : nothing
-
-"""
-	push!(s::RunningStatistic, x)
+	push!(s::RunningMeanVar, x)
 
 Append the value `x` to the collection represented by `s`.
 """
-push!(stat::RunningStatistic{T}, x) where {T} = push!(stat, convert(T, x))
-function push!(stat::RunningStatistic{T}, x::T) where {T}
+push!(stat::RunningMeanVar{T}, x) where {T} = push!(stat, convert(T, x))
+function push!(stat::RunningMeanVar{T,R,S}, x::T) where {T,R,S}
 	stat.count += 1
 
 	if stat.count == 1
 		stat.mean = x
-		stat.min = x
-		stat.max = x
-		stat.sumsq = zero(x)
+		# stat.min = x
+		# stat.max = x
+		stat.sumsq = zero(S)
 	else
-		mean_ = stat.mean
-		stat.mean += (x - mean_)/stat.count
-		stat.sumsq += (x - stat.mean) .* (x - mean_) 
-		stat.min = min(x, stat.min)
-		stat.max = max(x, stat.max)
+		dx = x - stat.mean
+		stat.mean += dx/stat.count
+		stat.sumsq += (1.0-1.0/stat.count) * dot(dx, dx)
+		# stat.min = min(x, stat.min)
+		# stat.max = max(x, stat.max)
 	end
 	stat
 end
 
 
 
-# mean(stat::RunningStatistic) = stat.count > 0 ? stat.mean : nothing
-# var(stat::RunningStatistic; corrected = true) = stat.count > 1 ? raw_var(stat, corrected) : nothing
-# std(stat::RunningStatistic; corrected = true) = stat.count > 1 ? sqrt(raw_var(stat, corrected)) : nothing
-# minimum(stat::RunningStatistic) = stat.count > 0 ? stat.min : nothing
-# maximum(stat::RunningStatistic) = stat.count > 0 ? stat.max : nothing
-# uncertainty(stat::RunningStatistic) = stat.count > 1 ? sqrt(raw_var(stat, true)/stat.count) : nothing
+"""
+	mean(s::RunningMeanVar)
+
+Mean of the collection represented by `s`. This has type `typeof(*(::T, Float64))`.
+Returns `nothing` if `length(s) < 1`.
+
+See also [`uncert`](@ref).
+"""
+mean(stat::RunningMeanVar) = stat.mean
 
 
+
+"""
+	var(s::RunningMeanVar; corrected = true)
+	std(s::RunningMeanVar; corrected = true)
+
+Variance and standard deviation of the collection represented by `s`.
+This is generally real scalar, even when `T` is a container type.
+Returns `nothing` if `length(s) < 2`.
+	"""
+var(stat::RunningMeanVar; corrected = true) = stat.count > 1 ? _var(stat, corrected) : nothing
+std(stat::RunningMeanVar; corrected = true) = stat.count > 1 ? sqrt(_var(stat, corrected)) : nothing
+
+# private
+_var(stat::RunningMeanVar, corrected::Bool) = stat.sumsq/(stat.count - corrected)
+
+
+"""
+	uncert(s::RunningMeanVar)
+
+Unbiased estimate of the statistical uncertainty of `mean(s)`. It is computed as
+`sqrt(var(s)/length(s))` and is generally a real scalar.
+
+The estimate is reliable only if the sample is large enough to be representative of
+the distribution underlying the data.
+"""
+uncert(stat::RunningMeanVar) = stat.count > 1 ? sqrt.(_var(stat, true)/stat.count) : nothing
+
+
+
+# minimum(stat::RunningStatistic) = stat.min
+# maximum(stat::RunningStatistic) = stat.max
 
 
 
