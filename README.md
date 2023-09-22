@@ -7,8 +7,7 @@ Datatypes to maintain running statistics (mean, min/max, variance, etc.) of data
 ```
 stat = RunningMeanVar{Float64}()
 ```
-creates an object that maintains a running mean and variance for data of type `Float64`.  This object can be used much like a collection. Values are
-added to the (virtual) collection via `push!`:
+creates an object that maintains a running mean and variance for data of type `Float64`.  This object can be used much like a collection. Values are added to the (virtual) collection via `push!`:
 ```
 push!(stat, 1.5)
 push!(stat, 2.3)
@@ -26,20 +25,24 @@ while the sample variance and standard deviation can be obtained using
 var(stat)			# 0.32
 std(stat)			# 0.56568...
 ```
-In many cases the sample mean is regarded as an estimate of the mean of an underlying population. In these contexts the quantity
+In many cases the sample mean is regarded as an estimate of the mean of an underlying population. In such contexts the quantity
 ```
 uncert(s)		# 0.4
 ```
 which is derived from the sample variance, provides an unbiased estimate of the statistical uncertainty in of sample mean.
 
-More generally, `RunningMeanVar{T}()` tracks the mean and variance for data of type `T` (see below for requirements on `T`.)  Notably, `var`, `std`, and `uncert` generally return real scalars corresponding to distances in `T` space, even when `T` is a vector type.
+The follow methods are supported for `RunningMeanVar`:  `length`, `eltype`, `isempty`, `copy`, `push!`,
+`append!`, `merge`, `mean`, `var`, `std`, and `uncert`.
+
+
+In general, `RunningMeanVar{T}()` tracks the mean and variance for data of type `T` (see below for requirements on `T`.)  Notably, `var`, `std`, and `uncert` generally return real scalars corresponding to distances in `T` space, even when `T` is a vector type.
 
 If you have data of type `Vector{T}` and wish to track the mean and variance of *each component independently*, do not create a `RunningMeanVar{Vector{T}}`; instead create a `Vector{RunningMeanVar{T}}` and broadcast `push!`, `mean`, etc.
 
 
 ## Details
 
-The mean and variance are computed using a method similar to that discussed by Welford (1962) and Knuth (1998).  The variance update formula was generalized to handle any data type with an inner product and reformulated to manifestly preserve adjoint symmetry.
+The mean and variance are computed using a generalization of the 1-pass method proposed by Welford (1962), which is simple, efficient, and moderately accurate.
 
 For a `RunningMeanVar` with element type `T`, the following methods are needed to compute the mean and variance:
 ```
