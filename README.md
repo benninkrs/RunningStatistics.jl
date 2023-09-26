@@ -1,13 +1,24 @@
 # RunningStatistics.jl
 
-Datatypes to maintain running statistics (mean, min/max, variance, etc.) of data without storing the entire collection. Useful for streamed data.
+Implements datatypes that accumulate statistics of data without storing the entire collection. Useful for streamed data.
+
+
+`RunningStatistic{T}` is an abstract data type that accumulates statistics of serially input values of type `T`.  A `RunningStatistic` is used much like a collection: values are added by methods such as `push!`, and statistical properties are retrieved by methods such as `mean`. The full set of supported methods is listed below.
+
+ Two concrete types are currently implemented:
+
+* `RunningMeanVar{T} <: RunningStatistic{T}` accumulates the mean and variance of *single-variable values* of type `T`.  `T` can be any type for which algebraic operations and inner product are defined.
+
+* `RunningMeanCov{T} <: RunningStatistic{Vector{T}}` accumulates a vector mean and covariance matrix of *multi-variable data* represented as vectors of values of type `T`.
+
+The difference between the two is made clearer in the case of vector-valued data. A vector `x::Vector{T}` can be accumulated into either a `RunningMeanVar{Vector{T}}` or a `RunningMeanCov{T}`. The former treats `x` as a single vector-valued variable and computes a scalar-valued variance in terms of inner products.  In constrast, the latter treats each component of `x` as a separate variable and computes a covariance matrix with one element for each pair of vector components.
 
 ## Usage
 
 ```
 stat = RunningMeanVar{Float64}()
 ```
-creates an object that maintains a running mean and variance for data of type `Float64`.  This object can be used much like a collection. Values are added to the (virtual) collection via `push!`:
+creates an object that maintains a running mean and variance for data of type `Float64`. Values are added to the (virtual) collection via `push!`:
 ```
 push!(stat, 1.5)
 push!(stat, 2.3)
@@ -31,13 +42,8 @@ uncert(s)		# 0.4
 ```
 which is derived from the sample variance, provides an unbiased estimate of the statistical uncertainty in of sample mean.
 
-The follow methods are supported for `RunningMeanVar`:  `length`, `eltype`, `isempty`, `copy`, `push!`,
-`append!`, `merge`, `mean`, `var`, `std`, and `uncert`.
-
-
-In general, `RunningMeanVar{T}()` tracks the mean and variance for data of type `T` (see below for requirements on `T`.)  Notably, `var`, `std`, and `uncert` generally return real scalars corresponding to distances in `T` space, even when `T` is a vector type.
-
-If you have data of type `Vector{T}` and wish to track the mean and variance of *each component independently*, do not create a `RunningMeanVar{Vector{T}}`; instead create a `Vector{RunningMeanVar{T}}` and broadcast `push!`, `mean`, etc.
+The follow functions are implemented by `RunningMeanVar`:  `length`, `eltype`, `isempty`, `copy`, `push!`,
+`append!`, `merge`, `mean`, `var`, `std`, and `uncert`. `RunningMeanCov` implements the same functions, except that it implements `cov` instead of `var`.
 
 
 ## Details
