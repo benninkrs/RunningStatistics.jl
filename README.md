@@ -36,32 +36,28 @@ while the sample variance and standard deviation can be obtained using
 var(stat)			# 0.32
 std(stat)			# 0.56568...
 ```
-In many cases the sample mean is regarded as an estimate of the mean of an underlying population. In such contexts the quantity
+In many cases the sample mean is regarded as an estimate of the mean of an underlying population. In such contexts the variance of the mean
 ```
-uncert(s)		# 0.4
+varmean(s)		# 0.16
 ```
-which is derived from the sample variance, provides an unbiased estimate of the statistical uncertainty in of sample mean.
+provides an unbiased estimate of the variance of the sample mean as an estimator of the population mean. 
 
 The follow functions are implemented by `RunningMeanVar`:  `length`, `eltype`, `isempty`, `copy`, `push!`,
-`append!`, `merge`, `mean`, `var`, `std`, and `uncert`. `RunningMeanCov` implements the same functions, except that it implements `cov` instead of `var`.
+`append!`, `merge`, `mean`, `var`, `std`, `relvar`, `varmean`, and `stdmean`. `RunningMeanCov` implements the same functions, except that it implements `cov` and `covmean` instead of `var` and `varmean`.
 
 
 ## Details
 
-The mean and variance are computed using a generalization of the 1-pass method proposed by Welford (1962), which is simple, efficient, and moderately accurate.
+The mean, variance, and covariance are computed using a generalization of the 1-pass method proposed by Welford (1962), which is simple, efficient, and moderately accurate.
 
-For a `RunningMeanVar` with element type `T`, the following methods are needed to compute the mean and variance:
+For a `RunningStatistic` with element type `T`, the following methods are needed:
 ```
 +(::T, ::T)
 -(::T, ::T)
 *(::Float64, ::T)
 dot(::T, ::T)
 ```
+The first three are used to compute the mean. For a `RunningMeanVar{T}` the return type is `R = typeof(*(::Float64, ::T))` whereas for a `RunningMeanCov{T}` it is `Vector{R}`.
 
-
-The first three are used to compute the mean, which has type `R = typeof(*(::Float64, ::T))`.
-
-The variance is computed using `dot` which is assumed to satisfy the properties of an inner product. The return type of `var`, `std`, and `uncert` is `S = typeof(real(dot(::R, ::R)))`, which is typically `Float64`.
-
-The full type of the data structure is `RunningMeanVar{T,R,S}`.
+The variance is computed using `dot` which is assumed to satisfy the properties of an inner product. For a `RunningMeanVar{T}` the return type of `var` and related quantities is `S = typeof(real(dot(::R, ::R)))`, which is typically `Float64`.  For a `RunningMeanCov{T}` the return type of `cov` and related quantities is `Matrix{S}`.
 

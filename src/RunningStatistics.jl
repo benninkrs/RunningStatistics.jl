@@ -10,7 +10,7 @@ import Base: push!, eltype, length, isempty, copy, merge, append!
 import Statistics: mean, var, std, cov		# maximum, minimum
 
 export RunningStatistic, RunningMeanVar, RunningMeanCov
-export mean, var, cov, std, uncert  			# maximum, minimum
+export mean, var, cov, std, relvar, varmean, covmean, stdmean  			# maximum, minimum
 
 
 """
@@ -19,7 +19,7 @@ export mean, var, cov, std, uncert  			# maximum, minimum
 A type that accumulates statistics of serially input values of type `T`.
 It is used much like a collection and implements methods including
 [`length`](@ref), [`eltype`](@ref), [`push!`](@ref), [`append!`](@ref), [`merge!`](@ref),
-[`mean`](@ref), [`var`](@ref), [`std`](@ref), and [`uncert`](@ref). 
+[`mean`](@ref), [`var`](@ref), and [`std`](@ref). 
 """
 abstract type RunningStatistic{T} end
 
@@ -66,7 +66,7 @@ merge(s1::RunningStatistic, s2::RunningStatistic) = err_not_impl(:merge, (s1,s2)
 Mean of the collection represented by `s`. This has type `typeof(*(::T, Float64))`.
 Returns `nothing` if `length(s) < 1`.
 
-See also [`uncert`](@ref).
+See also [`stdmean`](@ref).
 """
 mean(s::RunningStatistic) = err_not_impl(:mean, s)
 
@@ -179,6 +179,15 @@ var(stat::RunningMeanVar; corrected = true) = stat.count > 1 ? _var(stat, correc
 
 
 """
+	relvar(s::RunningMeanVar; corrected = true)
+
+Relative variance of the collection represented by `s`, equal to `var(s)/dot(mean(s), mean(s))`.
+"""
+relvar(stat::RunningMeanVar; corrected = true) = stat.count > 1 ? _var(stat, corrected)/dot(mean(stat), mean(stat)) : nothing
+
+
+
+"""
 	std(s::RunningMeanVar; corrected = true)
 
 Standard deviation of the collection represented by `s`.  This is generally a real scalar,
@@ -189,15 +198,22 @@ std(stat::RunningMeanVar; corrected = true) = stat.count > 1 ? sqrt(_var(stat, c
 
 
 """
-	uncert(s::RunningMeanVar)
+	varmean(s::RunningMeanVar)
 
-Unbiased estimate of the statistical uncertainty of `mean(s)`, given by
-`sqrt(var(s)/length(s))`.
+Unbiased estimate of the variance of `mean(s)`; given by sqrt(var(s)/stat.count)`.
 
 The estimate is reliable only if the sample is large enough to be representative of
 the distribution underlying the data.
 """
-uncert(stat::RunningMeanVar) = stat.count > 1 ? sqrt.(_var(stat, true)/stat.count) : nothing
+varmean(stat::RunningMeanVar) = stat.count > 1 ? _var(stat, true)/stat.count : nothing
+
+
+"""
+	stdmean(s::RunningMeanVar)
+
+Estimate of the standard deviation of `mean(s)`, given by `sqrt(varmean(s))`.
+"""
+stdmean(stat::RunningMeanVar) = stat.count > 1 ? sqrt(varmean(stat)) : nothing
 
 
 # private
@@ -342,20 +358,44 @@ std(stat::RunningMeanCov; corrected = true) = stat.count > 1 ? sqrt(_cov(stat, c
 
 
 """
-	uncert(s::RunningMeanVar)
+	covmean(s::RunningMeanCov)
 
-Unbiased estimate of the statistical uncertainty of `mean(s)`, given by
-`sqrt(cov(s)/length(s))`.
+Unbiased estimate of the covariance matrix of `mean(s)`; equal to `cov(s)/length(s)`.
 
 The estimate is reliable only if the sample is large enough to be representative of
 the distribution underlying the data.
 """
-uncert(stat::RunningMeanCov) = stat.count > 1 ? sqrt(_cov(stat, true)/stat.count) : nothing
+covmean(stat::RunningMeanCov) = stat.count > 1 ? _cov(stat, true)/stat.count : nothing
+
+
+
+"""
+	stdmean(s::RunningMeanCov)
+
+Estimate of the standard deviation of `mean(s)`; equal to `sqrt(covmean(s)`.
+Note that this is a matrix.
+"""
+stdmean(stat::RunningMeanCov) = stat.count > 1 ? sqrt(covmean(stat, true)) : nothing
 
 
 # private
 _cov(stat::RunningMeanCov, corrected::Bool) = corrected ? stat.ucov/(1.0-1.0/stat.count) : stat.ucov
 
 
+
+# Error-compensated addition using the Kahan method
+# add_kahan(a,b,r) -> (a+b+r, r_)
+function add_kahan(a,b,r)
+	if a > b
+		b_ = b + r
+		s = a + b_
+		r_ = b_ - (s - a)
+	else
+		a_ = a + r
+		s = a_ + b
+		r_ = a_ - (s - b) 
+	end
+	return (s, r_) 
+end
 
 end # module RunningStatistics
