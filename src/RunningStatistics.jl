@@ -6,7 +6,7 @@ module RunningStatistics
 
 using LinearAlgebra: dot, diag
 
-import Base: push!, eltype, length, isempty, copy, merge, append!
+import Base: push!, eltype, length, isempty, copy, merge, append!, empty!
 import Statistics: mean, var, std, cov		# maximum, minimum
 
 export RunningStatistic, RunningMeanVar, RunningMeanCov
@@ -48,7 +48,16 @@ append!(s1::RunningStatistic, s2::RunningStatistic) = err_not_impl(:append!, (s1
 
 
 
-	"""
+
+"""
+	empty!(s::RunningStatistic)
+
+Reset all properties to that of an empty collection.
+"""
+empty!(s::RunningStatistic) = err_not_impl(:empty!, s)
+
+
+"""
 	merge(s1::RunningStatistic, s2::RunningStatistic)
 
 Creates a new `RunningMeanVar` that represents the combined data underlying `s1` and `s2`.
@@ -154,6 +163,15 @@ function append!(stat1::RunningMeanVar{T,R,S}, stat2::RunningMeanVar{T,R,S}) whe
 		stat1.uvar = f1 * stat1.uvar + f2 * stat2.uvar + f1*f2 * dot(y,y)
 	end
 	return stat1
+end
+
+
+
+function empty!(stat::RunningMeanVar)
+	stat.count = 0
+	stat.mean = nothing
+	stat.uvar = nothing
+	return stat
 end
 
 
@@ -325,6 +343,15 @@ function append!(stat1::RunningMeanCov{T,R,S}, stat2::RunningMeanCov{T,R,S}) whe
 		end
 	end
 	return stat1
+end
+
+
+
+function empty!(stat::RunningMeanCov)
+	stat.count = 0
+	stat.mean = nothing
+	stat.ucov = nothing
+	return stat
 end
 
 
